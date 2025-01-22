@@ -1,13 +1,6 @@
 import numpy as np
 import gradio as gr
 
-# def flip_text(x):
-#     return x[::-1]
-
-# def flip_image(x):
-#     return np.fliplr(x)
-
-
 # open ai api를 이용해서 메세지를 생성합니다.
 # draft : 사용자가 입력한 초안
 # draft_time : 사용자가 원하는 shorts의 재생시간
@@ -15,13 +8,11 @@ import gradio as gr
 def generate_message(draft, draft_time):
     return f"AI로 생성된 메시지: {draft} (시간: {draft_time}초)"
 
-def video_file_selected(path):
-     print(path)
-     return path
-
+# Video 생성 버튼
 def generate_video(shorts_text, video_file):
     return f"AI로 생성된 aiShorts: {shorts_text} (video: {video_file})"
 
+# Voice clone 버튼
 def voice_cloning(audio_file):
     # clone voice
 
@@ -29,7 +20,6 @@ def voice_cloning(audio_file):
     # gr.Alert(f"AI로 생성된 복제된 음성: {audio_file}", type="info")
     # gr.Markdown(f"AI로 생성된 복제된 음성: {audio_file}")
     gr.Warning(f"AI로 생성된 복제된 음성: {audio_file}")
-    gr.
     return f"AI로 생성된 복제된 음성: {audio_file}"
 
 with gr.Blocks() as demo:
@@ -78,8 +68,6 @@ with gr.Blocks() as demo:
         inputs=[audio_input],
         outputs=None
     )
-    # text_button.click(flip_text, inputs=draft_input, outputs=text_output)
-    # image_button.click(flip_image, inputs=image_input, outputs=image_output)
 
 if __name__ == "__main__":
     demo.launch()

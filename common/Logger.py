@@ -3,6 +3,8 @@ import os
 import colorlog
 from datetime import datetime
 
+logging.getLogger('boto3').setLevel(logging.WARNING)
+logging.getLogger('botocore').setLevel(logging.WARNING)
 
 class Logger:
     """
@@ -89,4 +91,4 @@ class Logger:
 
 # 전역 logger 인스턴스 생성
 # 파일 로깅을 활성화하려면 enable_file_logging=True로 설정하세요.
-logger = Logger(enable_file_logging=False).logger
+logger = Logger(enable_file_logging=False)

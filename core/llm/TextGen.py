@@ -74,9 +74,9 @@ class TextGen:
         try:
             logger.info(f"TextGen: {self.engine} 엔진을 사용하여 텍스트 생성 시도.")
             response_text = self.provider.generate(
-                type=prompt_type, 
+                prompt_type=prompt_type, 
                 who=who, 
-                time=time_sec, 
+                time_sec=time_sec, 
                 contents=contents
             )
             if response_text:

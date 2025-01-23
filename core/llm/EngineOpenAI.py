@@ -1,8 +1,7 @@
 import os
 from typing import Optional
 
-import openai
-from openai.error import OpenAIError
+from openai import OpenAI
 
 from common.Logger import logger
 
@@ -25,7 +24,7 @@ class EngineOpenAI:
             logger.error("EngineOpenAI: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
             raise ValueError("EngineOpenAI: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
 
-        openai.api_key = api_key
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
         self.model = model_name
         logger.info(f"EngineOpenAI: 모델 '{self.model}' 초기화 완료.")
@@ -52,7 +51,7 @@ class EngineOpenAI:
 
         project_root = os.getcwd()
         prompt = ''
-        prompt_path = os.path.join(project_root, 'prompt', f'{prompt_type.capitalize()}_OpenAI.txt')
+        prompt_path = os.path.join(project_root, 'prompt', f'SpeechTime_OpenAI.txt')
 
         if not os.path.isfile(prompt_path):
             logger.error(f"EngineOpenAI: 프롬프트 파일을 찾을 수 없습니다: {prompt_path}")
@@ -92,16 +91,13 @@ class EngineOpenAI:
 
         try:
             logger.info("EngineOpenAI: OpenAI API 호출 시작.")
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}]
             )
             generated_text = response.choices[0].message.content.strip()
             logger.info("EngineOpenAI: OpenAI API 호출 완료.")
             return generated_text
-        except OpenAIError as e:
-            logger.error(f"EngineOpenAI: OpenAI API 호출 중 오류 발생: {e}")
-            return None
         except IndexError:
             logger.error("EngineOpenAI: OpenAI API 응답에서 생성된 텍스트를 찾을 수 없습니다.")
             return None

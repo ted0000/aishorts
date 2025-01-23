@@ -6,7 +6,7 @@ from typing import Optional, Dict
 import boto3
 from botocore.exceptions import ClientError
 
-import common.Logger as logger
+from common.Logger import logger
 
 
 class S3Uploader:
@@ -62,7 +62,7 @@ class S3Uploader:
         )
 
     def upload(
-        self, file_path: str, duration: float, s3_key: Optional[str] = None
+        self, file_path: str, duration: int=0, s3_key: Optional[str] = None
     ) -> str:
         """
         지정된 파일을 S3에 업로드합니다.
@@ -78,7 +78,7 @@ class S3Uploader:
 
         if s3_key is None:
             ext = Path(file_path).suffix[1:]
-            s3_key = self._get_new_media_path(duration=duration, ext=ext)
+            s3_key = self._get_new_media_path(duration, ext=ext)
 
         try:
             self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
@@ -127,25 +127,38 @@ class S3Uploader:
         return {"object_key": key, "presigned_url": url}
 
     def upload_av(
-        self, audio_path: str, video_path: str, duration: float = 0, s3_key: Optional[str] = None
+        self, audio_path: str, video_path: str, presigned_duration: int = 600, s3_key: Optional[str] = None
     ) -> Dict[str, Dict[str, str]]:
         """
         오디오와 비디오 파일을 S3에 업로드하고, presigned URL을 생성하여 반환합니다.
 
         :param audio_path: 업로드할 오디오 파일 경로.
         :param video_path: 업로드할 비디오 파일 경로.
-        :param duration: 파일의 지속 시간 (초).
+        :param presigned_duration: 파일의 지속 시간 (초).
         :param s3_key: S3 업로드 시 사용할 object key (경로). None이면 파일명을 사용.
         :return: {
             "audio": {"object_key": s3_key, "presigned_url": url},
             "video": {"object_key": s3_key, "presigned_url": url}
         }.
         """
-        audio_info = self.upload_presigned_url(audio_path, duration, s3_key=s3_key)
-        video_info = self.upload_presigned_url(video_path, duration, s3_key=s3_key)
+        audio_info = self.upload_presigned_url(audio_path, presigned_duration, s3_key=s3_key)
+        video_info = self.upload_presigned_url(video_path, presigned_duration, s3_key=s3_key)
         return {"audio": audio_info, "video": video_info}
+    
+    def remove(self, object_name: str) -> None:
+        """
+        S3에서 object_name을 삭제합니다.
 
-    def download(self, object_name: str, download_path: str) -> None:
+        :param object_name: S3 상의 파일 key.
+        """
+        try:
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
+            logger.info(f"S3 파일 삭제 성공: {object_name}")
+        except ClientError as e:
+            logger.error(f"S3 file deletion failed: {e}")
+            raise RuntimeError(f"S3 file deletion failed: {e}")
+
+    def download(self, object_name: str, download_path: str=None) -> None:
         """
         S3에 있는 object_name을 로컬로 다운로드합니다.
 
@@ -153,13 +166,17 @@ class S3Uploader:
         :param download_path: 다운로드할 로컬 파일 경로.
         """
         try:
+            if download_path is None:
+                logger.error("다운로드 경로가 지정되지 않았습니다.")
             self.s3_client.download_file(self.bucket_name, object_name, download_path)
+            download_path = os.path.join(os.getcwd(), download_path)
             logger.info(f"S3에서 파일 다운로드 성공: {object_name} -> {download_path}")
         except ClientError as e:
             logger.error(f"S3 download failed: {e}")
             raise RuntimeError(f"S3 download failed: {e}")
+        return download_path
 
-    def _get_new_media_path(self, duration: float = 0, ext: str = 'mp3') -> str:
+    def _get_new_media_path(self, duration: int=0, ext: str = 'mp3') -> str:
         """
         새로운 파일 경로를 생성합니다.
 
@@ -170,5 +187,5 @@ class S3Uploader:
         now = datetime.now()
         date_str = now.strftime("%Y/%m")
         datetime_str = now.strftime("%Y%m%d_%H%M%S")
-        new_file_name = f"{self.base_dir}/{date_str}/{datetime_str}_{int(duration)}Sec.{ext}"
+        new_file_name = f"{self.base_dir}/{date_str}/{datetime_str}_{duration}Sec.{ext}"
         return new_file_name

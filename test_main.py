@@ -1,6 +1,5 @@
 import os
-import sys
-import argparse
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -10,6 +9,9 @@ from core.lipsync.LipSync import LibSync
 from core.media.S3Uploader import S3Uploader
 from core.media.SceneMixer import SceneMixer
 from core.elevenlabs.ElevenlabsClient import ElevenlabsClient
+from core.llm.TextGen import TextGen
+
+from common.Logger import logger
 
 # .env 파일 로드
 load_dotenv(override=True)
@@ -20,9 +22,22 @@ def test_S3Upload():
     video_file = os.path.join(current_directory, "data", "dr_m_02_vertical.mp4")
     s3uploader = S3Uploader()
     s3_key = s3uploader.upload(video_file)
+    filename = Path(s3_key).name
+
     # presigned_url = s3uploader.gen_presigned_url(s3_key)
-    s3uploader.download(s3_key, "downloaded.mp4")
-    print('1')
+    download_path = s3uploader.download(s3_key, filename)
+
+    guess = os.path.join(current_directory, filename)
+    if os.path.exists(guess):
+        logger.info('S3Upload test passed')
+    else:
+        logger.error('S3Upload test failed')
+
+    # s3 object remove
+    s3uploader.remove(s3_key)
+
+    # delete download_path
+    os.remove(download_path)
 
 def test_LipSync():
     # video_url = 'https://videos.files.wordpress.com/C7ZiEpy8/dr_m_02_vertical.mp4'
@@ -38,7 +53,10 @@ def test_cut_audio():
     media_path = os.path.join(current_dir, "data", "woman_voice.m4a")
     me = MediaEditor(media_path=media_path)
 
-    me.cut_duration(15)
+    output_path = me.cut_duration(15)
+    logger.info(f"Cut audio: {output_path}")
+
+    os.remove(output_path)
 
 def test_genshorts():
     video_path = "temp/experiment2/dr_m_02_vertical.mp4"
@@ -101,22 +119,23 @@ def test_gemini():
     tgen = TextGen(engine='gemini')
     who = '유재석 원장'
     contents = '임신했을때 예방주사에 대해서'
-    gentext = tgen.genText(type='speech_time', who=who, time=30, contents=contents)
-    print(gentext)
+    gentext = tgen.gen_text(prompt_type='speech_time', who=who, time_sec=30, contents=contents)
+    logger.info(gentext)
     return gentext
 
 def test_openai():
     tgen = TextGen(engine='openai')
     who = '유재석 원장'
     contents = '임신했을때 예방주사에 대해서'
-    gentext = tgen.genText(type='speech_time', who=who, time=30, contents=contents)
+    gentext = tgen.gen_text(prompt_type='speech_time', who=who, time_sec=30, contents=contents)
     print(gentext)
     return gentext
 
 if __name__ == "__main__":
+    # test_S3Upload()
     # test_cut_audio()
-    test_genshorts()
+    # test_genshorts()
     # test_scenemixer()
     # test_genaudio()
     # gentext = test_gemini()
-    # gettext = test_openai()
+    gettext = test_openai()

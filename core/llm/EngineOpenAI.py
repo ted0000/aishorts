@@ -1,51 +1,107 @@
 import os
-from openai import OpenAI
+from typing import Optional
+
+import openai
+from openai.error import OpenAIError
 
 from common.Logger import logger
 
+
 class EngineOpenAI:
     """
-    OpenAI API와 연동하여 텍스트를 생성하는 클래스 (기본 틀)
+    OpenAI API와 연동하여 텍스트를 생성하는 클래스.
     """
-    def __init__(self):
-        """
-        :param api_key: Gemini 전용 API Key, 필요 시
-        """
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        # possible model list
-        # gpt-4o
-        # gpt-4o-mini
-        # o1
-        # o1-mini
-        # self.model = 'o1-mini'
-        self.model = 'gpt-4o-mini'
 
-    def _load_prompt(self, type='speech_time', who='', time=30, contents='') -> str:
+    SUPPORTED_PROMPT_TYPES = {'speech_time'}
+
+    def __init__(self, model_name: str = 'gpt-4o-mini'):
+        """
+        EngineOpenAI 초기화 메서드.
+
+        :param model_name: 사용할 OpenAI 모델 이름. 기본값은 'gpt-4o-mini'.
+        """
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            logger.error("EngineOpenAI: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+            raise ValueError("EngineOpenAI: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+
+        openai.api_key = api_key
+
+        self.model = model_name
+        logger.info(f"EngineOpenAI: 모델 '{self.model}' 초기화 완료.")
+
+    def _load_prompt(
+        self,
+        prompt_type: str = 'speech_time',
+        who: str = '',
+        time_sec: int = 30,
+        contents: str = ''
+    ) -> Optional[str]:
+        """
+        지정된 타입에 따라 프롬프트를 로드하고 포맷합니다.
+
+        :param prompt_type: 프롬프트 타입 (예: 'speech_time').
+        :param who: 대상자 이름.
+        :param time_sec: 시간(초).
+        :param contents: 내용.
+        :return: 포맷된 프롬프트 문자열. 실패 시 None.
+        """
+        if prompt_type not in self.SUPPORTED_PROMPT_TYPES:
+            logger.error(f"EngineOpenAI: 지원하지 않는 프롬프트 타입입니다: {prompt_type}")
+            return None
+
         project_root = os.getcwd()
         prompt = ''
-        system_prompt = ''
-        user_prompt = ''
+        prompt_path = os.path.join(project_root, 'prompt', f'{prompt_type.capitalize()}_OpenAI.txt')
 
-        if type == 'speech_time':
-            prompt_path = os.path.join(project_root, 'prompt', 'SpeechTime_OpenAI.txt')
-        
+        if not os.path.isfile(prompt_path):
+            logger.error(f"EngineOpenAI: 프롬프트 파일을 찾을 수 없습니다: {prompt_path}")
+            return None
+
+        try:
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 prompt = f.read()
-            prompt = prompt.format(who=who, time=time, contents=contents)
-        
+            prompt = prompt.format(who=who, time=time_sec, contents=contents)
+            logger.info("EngineOpenAI: 프롬프트 로드 및 포맷 성공.")
+        except Exception as e:
+            logger.error(f"EngineOpenAI: 프롬프트 로드/포맷 중 오류 발생: {e}")
+            return None
+
         return prompt
 
-    def generate(self, type='speech_time', who='', time=30, contents='') -> str:
-        prompt = self._load_prompt(type, who=who, time=time, contents=contents)
+    def generate(
+        self,
+        prompt_type: str = 'speech_time',
+        who: str = '',
+        time_sec: int = 30,
+        contents: str = ''
+    ) -> Optional[str]:
+        """
+        지정된 프롬프트를 기반으로 OpenAI API를 호출하여 텍스트를 생성합니다.
+
+        :param prompt_type: 프롬프트 타입 (예: 'speech_time').
+        :param who: 대상자 이름.
+        :param time_sec: 시간(초).
+        :param contents: 내용.
+        :return: 생성된 텍스트. 실패 시 None.
+        """
+        prompt = self._load_prompt(prompt_type, who, time_sec, contents)
         if not prompt:
-            logger.error("프롬프트 준비 과정에서 오류가 발생했습니다.")
+            logger.error("EngineOpenAI: 프롬프트 준비 과정에서 오류가 발생했습니다.")
             return None
-        
-        logger.info(f'Call OpenAI API...')        
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        logger.info(f'Done OpenAI API.')
-        
-        return response.choices[0].message.content.strip()
+
+        try:
+            logger.info("EngineOpenAI: OpenAI API 호출 시작.")
+            response = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            generated_text = response.choices[0].message.content.strip()
+            logger.info("EngineOpenAI: OpenAI API 호출 완료.")
+            return generated_text
+        except OpenAIError as e:
+            logger.error(f"EngineOpenAI: OpenAI API 호출 중 오류 발생: {e}")
+            return None
+        except IndexError:
+            logger.error("EngineOpenAI: OpenAI API 응답에서 생성된 텍스트를 찾을 수 없습니다.")
+            return None
